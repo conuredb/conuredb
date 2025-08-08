@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	// MaxItems is the maximum number of items in a node
+	// MaxItems is the maximum number of items in a node (soft cap; actual fit is enforced by size estimation)
 	MaxItems = 255
 
 	// MinItems is the minimum number of items in a node
@@ -134,16 +134,23 @@ func (t *BTree) Put(key []byte, value []byte) error {
 		// Add the split key from the new node
 		rootNode.AddItem(Item{Key: newRoot.items[0].Key, Value: nil})
 
-		// Update our reference to the new root
-		newRoot = rootNode
+		// Update children's parent pointers
+		if err := t.setParent(root.id, rootNode.id); err != nil {
+			t.storage.abortTransaction()
+			return err
+		}
+		if err := t.setParent(newRoot.id, rootNode.id); err != nil {
+			t.storage.abortTransaction()
+			return err
+		}
 
 		// Set the new root
-		if err := t.storage.SetRootNode(newRoot); err != nil {
+		if err := t.storage.SetRootNode(rootNode); err != nil {
 			t.storage.abortTransaction()
 			return err
 		}
 	} else if newRoot != nil && newRoot.id != root.id {
-		// Set the new root
+		// Set the new root (no split but path-copied root)
 		if err := t.storage.SetRootNode(newRoot); err != nil {
 			t.storage.abortTransaction()
 			return err
@@ -152,6 +159,28 @@ func (t *BTree) Put(key []byte, value []byte) error {
 
 	// Commit transaction
 	return t.storage.CommitTransaction()
+}
+
+// estimateNodeSize computes the size if node had its current content;
+// if withItem!=nil, includes that item; if withNewChild>=0, includes one new child pointer.
+func estimateNodeSize(node *Node, withItem *Item, withNewChild int) int {
+	size := NodeHeaderSize
+	// items
+	for _, it := range node.items {
+		size += 2 + len(it.Key) + 4 + len(it.Value)
+	}
+	if withItem != nil {
+		size += 2 + len(withItem.Key) + 4 + len(withItem.Value)
+	}
+	// children ids for internal nodes
+	if node.nodeType == InternalNode {
+		childCount := len(node.children)
+		if withNewChild >= 0 {
+			childCount++
+		}
+		size += 8 * childCount
+	}
+	return size
 }
 
 // insert inserts a key-value pair in a node
@@ -171,11 +200,36 @@ func (t *BTree) insert(node *Node, key []byte, value []byte) (*Node, bool, error
 			return nil, false, err
 		}
 
-		// Add the item
-		nodeCopy.AddItem(Item{Key: key, Value: value})
+		// Ensure adding the item will fit the page; if not, split first
+		candidate := Item{Key: key, Value: value}
+		if estimateNodeSize(nodeCopy, &candidate, -1) > NodeSize || len(nodeCopy.items)+1 > MaxItems {
+			// Split first, then insert into the appropriate half by recursing
+			newSibling, _, err := t.splitLeaf(nodeCopy)
+			if err != nil {
+				return nil, false, err
+			}
+			// Decide target: compare to split boundary (first key of sibling)
+			if bytes.Compare(key, newSibling.items[0].Key) < 0 {
+				// insert into left (nodeCopy)
+				nodeCopy.AddItem(candidate)
+				if err := t.storage.PutNode(nodeCopy); err != nil {
+					return nil, false, err
+				}
+				return newSibling, true, nil
+			}
+			// insert into right (newSibling)
+			newSibling.AddItem(candidate)
+			if err := t.storage.PutNode(newSibling); err != nil {
+				return nil, false, err
+			}
+			return newSibling, true, nil
+		}
 
-		// Check if the node needs to be split
-		if len(nodeCopy.items) > MaxItems {
+		// Add the item
+		nodeCopy.AddItem(candidate)
+
+		// Check if the node needs to be split by count (secondary guard)
+		if len(nodeCopy.items) > MaxItems || estimateNodeSize(nodeCopy, nil, -1) > NodeSize {
 			return t.splitLeaf(nodeCopy)
 		}
 
@@ -208,29 +262,64 @@ func (t *BTree) insert(node *Node, key []byte, value []byte) (*Node, bool, error
 			// Update the child pointer
 			nodeCopy.children[childPos] = newChild.id
 
+			// Maintain child's parent pointer
+			if err := t.setParent(newChild.id, nodeCopy.id); err != nil {
+				return nil, false, err
+			}
+
 			return nodeCopy, false, nil
 		}
 
 		return node, false, nil
 	}
 
-	// Split occurred, create a copy of the node (copy-on-write)
+	// Split occurred in child, create a copy of this node (copy-on-write)
 	nodeCopy, err := t.storage.CloneNode(node)
 	if err != nil {
 		return nil, false, err
 	}
 
-	// Add the new child
+	// Add the new child and split key
 	splitKey := newChild.items[0].Key
+	// Ensure capacity for key and new child pointer
+	if estimateNodeSize(nodeCopy, &Item{Key: splitKey, Value: nil}, childPos+1) > NodeSize || len(nodeCopy.items)+1 > MaxItems {
+		// Split this internal node before inserting
+		promoted, _, err := t.splitInternal(nodeCopy)
+		if err != nil {
+			return nil, false, err
+		}
+		// After splitting, the caller handles parent propagation
+		return promoted, true, nil
+	}
+
 	nodeCopy.AddItem(Item{Key: splitKey, Value: nil})
 	nodeCopy.AddChild(childPos+1, newChild.id)
 
+	// Maintain new child's parent pointer
+	if err := t.setParent(newChild.id, nodeCopy.id); err != nil {
+		return nil, false, err
+	}
+
 	// Check if the node needs to be split
-	if len(nodeCopy.items) > MaxItems {
+	if len(nodeCopy.items) > MaxItems || estimateNodeSize(nodeCopy, nil, -1) > NodeSize {
 		return t.splitInternal(nodeCopy)
 	}
 
 	return nodeCopy, false, nil
+}
+
+// setParent updates a child's parent pointer and persists it in the current tx
+func (t *BTree) setParent(childID NodeID, parentID NodeID) error {
+	child, err := t.storage.GetNode(childID)
+	if err != nil {
+		return err
+	}
+	childCopy, err := t.storage.CloneNode(child)
+	if err != nil {
+		return err
+	}
+	childCopy.SetParent(parentID)
+	return t.storage.PutNode(childCopy)
 }
 
 // splitLeaf splits a leaf node
@@ -245,6 +334,9 @@ func (t *BTree) splitLeaf(node *Node) (*Node, bool, error) {
 	node.items = node.items[:mid]
 	node.count = uint16(len(node.items))
 	newNode.count = uint16(len(newNode.items))
+
+	// Set parents (new node inherits node.parent)
+	newNode.parent = node.parent
 
 	// Save the nodes
 	if err := t.storage.PutNode(node); err != nil {
@@ -275,21 +367,9 @@ func (t *BTree) splitInternal(node *Node) (*Node, bool, error) {
 	newNode.children = append(newNode.children, node.children[mid+1:]...)
 	node.children = node.children[:mid+1]
 
-	// Update parent pointers
+	// Update parent pointers for children moved to newNode
 	for _, childID := range newNode.children {
-		child, err := t.storage.GetNode(childID)
-		if err != nil {
-			return nil, false, err
-		}
-
-		// Create a copy of the child (copy-on-write)
-		childCopy, err := t.storage.CloneNode(child)
-		if err != nil {
-			return nil, false, err
-		}
-
-		childCopy.SetParent(newNode.id)
-		if err := t.storage.PutNode(childCopy); err != nil {
+		if err := t.setParent(childID, newNode.id); err != nil {
 			return nil, false, err
 		}
 	}
@@ -661,16 +741,7 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 			leftSiblingCopy.children = leftSiblingCopy.children[:len(leftSiblingCopy.children)-1]
 
 			// Update the child's parent
-			child, err := t.storage.GetNode(childID)
-			if err != nil {
-				return nil, err
-			}
-			childCopy, err := t.storage.CloneNode(child)
-			if err != nil {
-				return nil, err
-			}
-			childCopy.SetParent(nodeCopy.id)
-			if err := t.storage.PutNode(childCopy); err != nil {
+			if err := t.setParent(childID, nodeCopy.id); err != nil {
 				return nil, err
 			}
 
@@ -726,16 +797,7 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 			rightSiblingCopy.children = rightSiblingCopy.children[1:]
 
 			// Update the child's parent
-			child, err := t.storage.GetNode(childID)
-			if err != nil {
-				return nil, err
-			}
-			childCopy, err := t.storage.CloneNode(child)
-			if err != nil {
-				return nil, err
-			}
-			childCopy.SetParent(nodeCopy.id)
-			if err := t.storage.PutNode(childCopy); err != nil {
+			if err := t.setParent(childID, nodeCopy.id); err != nil {
 				return nil, err
 			}
 
@@ -785,16 +847,7 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 
 		// Update the children's parent
 		for _, childID := range node.children {
-			child, err := t.storage.GetNode(childID)
-			if err != nil {
-				return nil, err
-			}
-			childCopy, err := t.storage.CloneNode(child)
-			if err != nil {
-				return nil, err
-			}
-			childCopy.SetParent(leftSiblingCopy.id)
-			if err := t.storage.PutNode(childCopy); err != nil {
+			if err := t.setParent(childID, leftSiblingCopy.id); err != nil {
 				return nil, err
 			}
 		}
@@ -860,16 +913,7 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 
 		// Update the children's parent
 		for _, childID := range rightSibling.children {
-			child, err := t.storage.GetNode(childID)
-			if err != nil {
-				return nil, err
-			}
-			childCopy, err := t.storage.CloneNode(child)
-			if err != nil {
-				return nil, err
-			}
-			childCopy.SetParent(nodeCopy.id)
-			if err := t.storage.PutNode(childCopy); err != nil {
+			if err := t.setParent(childID, nodeCopy.id); err != nil {
 				return nil, err
 			}
 		}

@@ -111,9 +111,9 @@ func (n *Node) Children() []NodeID {
 	return n.children
 }
 
-// AddItem adds an item to the node
+// AddItem inserts an item while keeping items sorted by key
 func (n *Node) AddItem(item Item) {
-	// Find the position to insert the item
+	// Find the position to insert the item using linear scan (items are small)
 	pos := 0
 	for pos < len(n.items) && bytes.Compare(n.items[pos].Key, item.Key) < 0 {
 		pos++
@@ -129,7 +129,7 @@ func (n *Node) AddItem(item Item) {
 	n.count++
 }
 
-// AddChild adds a child to the node
+// AddChild adds a child pointer at position pos (internal nodes only)
 func (n *Node) AddChild(pos int, child NodeID) error {
 	if n.nodeType != InternalNode {
 		return errors.New("cannot add child to leaf node")
@@ -176,32 +176,42 @@ func (n *Node) RemoveChild(pos int) error {
 	return nil
 }
 
-// FindKey finds the position of a key in the node
+// FindKey returns the index of key in items via binary search, or -1 if not found
 func (n *Node) FindKey(key []byte) int {
-	for i, item := range n.items {
-		if bytes.Equal(item.Key, key) {
-			return i
+	low, high := 0, len(n.items)-1
+	for low <= high {
+		mid := (low + high) / 2
+		cmp := bytes.Compare(n.items[mid].Key, key)
+		if cmp == 0 {
+			return mid
+		} else if cmp < 0 {
+			low = mid + 1
+		} else {
+			high = mid - 1
 		}
 	}
 	return -1
 }
 
-// FindChildPos finds the position of the child that should contain the key
+// FindChildPos finds the child index that should contain key using binary search
 func (n *Node) FindChildPos(key []byte) int {
 	if n.nodeType != InternalNode {
 		return -1
 	}
 
-	for i, item := range n.items {
-		if bytes.Compare(key, item.Key) < 0 {
-			return i
+	low, high := 0, len(n.items)
+	for low < high {
+		mid := (low + high) / 2
+		if bytes.Compare(key, n.items[mid].Key) < 0 {
+			high = mid
+		} else {
+			low = mid + 1
 		}
 	}
-
-	return len(n.items)
+	return low
 }
 
-// Serialize serializes the node to a byte slice
+// Serialize serializes the node to a fixed-size page (NodeSize)
 func (n *Node) Serialize() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, NodeSize))
 
@@ -219,7 +229,7 @@ func (n *Node) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	// Write items
+	// Write items (key length, key, value length, value)
 	for _, item := range n.items {
 		// Write key length
 		keyLen := uint16(len(item.Key))
@@ -258,7 +268,7 @@ func (n *Node) Serialize() ([]byte, error) {
 	if currentSize > NodeSize {
 		return nil, fmt.Errorf("node size %d exceeds maximum size %d", currentSize, NodeSize)
 	}
-	
+
 	// Pad to NodeSize
 	padding := make([]byte, NodeSize-currentSize)
 	if _, err := buf.Write(padding); err != nil {
@@ -268,7 +278,7 @@ func (n *Node) Serialize() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Deserialize deserializes a byte slice to a node
+// DeserializeNode deserializes a byte slice to a node
 func DeserializeNode(data []byte) (*Node, error) {
 	if len(data) != NodeSize {
 		return nil, errors.New("invalid data size")
