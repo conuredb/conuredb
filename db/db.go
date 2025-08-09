@@ -2,6 +2,9 @@ package db
 
 import (
 	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/conure-db/conure-db/btree"
@@ -87,4 +90,78 @@ func (db *DB) Sync() error {
 	}
 
 	return db.tree.Sync()
+}
+
+// SnapshotTo streams a durable snapshot of the database file to w.
+// This acquires the DB lock for the duration for simplicity and consistency.
+func (db *DB) SnapshotTo(w io.Writer) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if db.isClosed {
+		return errors.New("database closed")
+	}
+
+	// Ensure latest state is on disk
+	if err := db.tree.Sync(); err != nil {
+		return err
+	}
+
+	f, err := os.Open(db.path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(w, f)
+	return err
+}
+
+// RestoreFrom replaces the on-disk database with the provided snapshot stream.
+// This closes and reopens the underlying B-Tree atomically via rename.
+func (db *DB) RestoreFrom(r io.Reader) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if db.isClosed {
+		return errors.New("database closed")
+	}
+
+	// Close the current tree to release file handles
+	if err := db.tree.Close(); err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(db.path)
+	tmpPath := filepath.Join(dir, ".conure.restore.tmp")
+	// Write snapshot to a temp file
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(tmpFile, r); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	// Atomically replace the db file
+	if err := os.Rename(tmpPath, db.path); err != nil {
+		return err
+	}
+
+	// Reopen the tree
+	tree, err := btree.NewBTree(db.path)
+	if err != nil {
+		return err
+	}
+	db.tree = tree
+
+	return nil
 }
