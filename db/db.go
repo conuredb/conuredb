@@ -44,6 +44,16 @@ func (db *DB) Close() error {
 	return db.tree.Close()
 }
 
+// Reload refreshes in-memory metadata to reflect external changes.
+func (db *DB) Reload() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.isClosed {
+		return errors.New("database closed")
+	}
+	return db.tree.Reload()
+}
+
 // Get gets a value from the database
 func (db *DB) Get(key []byte) ([]byte, error) {
 	db.mu.RLock()

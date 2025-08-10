@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-boltdb v0.0.0-20250701115049-6cdf087e85ed
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
