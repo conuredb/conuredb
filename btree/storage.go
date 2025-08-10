@@ -253,6 +253,14 @@ func (s *Storage) writeHeader() error {
 	return nil
 }
 
+// ReloadHeader refreshes in-memory header state from disk.
+// Intended for read-only consumers to observe updates made by another process.
+func (s *Storage) ReloadHeader() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.readHeader()
+}
+
 // GetNode gets a node from storage
 func (s *Storage) GetNode(nodeID NodeID) (*Node, error) {
 	s.mu.RLock()

@@ -38,6 +38,13 @@ func NewBTree(storagePath string) (*BTree, error) {
 	}, nil
 }
 
+// Reload refreshes in-memory metadata to reflect external changes.
+func (t *BTree) Reload() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.storage.ReloadHeader()
+}
+
 // Close closes the B-tree
 func (t *BTree) Close() error {
 	t.mu.Lock()

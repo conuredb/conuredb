@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -15,24 +14,20 @@ import (
 )
 
 func main() {
-	var (
-		dataDir   = flag.String("data-dir", "./data", "data directory for node state")
-		nodeID    = flag.String("node-id", "node1", "unique node ID")
-		raftAddr  = flag.String("raft-addr", "127.0.0.1:7001", "raft bind/advertise address host:port")
-		httpAddr  = flag.String("http-addr", ":8081", "http bind address")
-		bootstrap = flag.Bool("bootstrap", true, "bootstrap single-node cluster if no existing state")
-	)
-	flag.Parse()
-
 	// Suppress global logger output used by some dependencies; use our own logger instead
 	log.SetOutput(io.Discard)
 	appLog := log.New(os.Stdout, "", log.LstdFlags)
 
-	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
+	cfg, err := LoadEffectiveConfig()
+	if err != nil {
+		appLog.Fatalf("load config: %v", err)
+	}
+
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
 		appLog.Fatalf("mkdir: %v", err)
 	}
 
-	dbPath := filepath.Join(*dataDir, "conure.db")
+	dbPath := filepath.Join(cfg.DataDir, "conure.db")
 	store, err := db.Open(dbPath)
 	if err != nil {
 		appLog.Fatalf("open db: %v", err)
@@ -41,20 +36,20 @@ func main() {
 
 	fsm := &raftnode.FSM{DB: store}
 	node, err := raftnode.StartNode(raftnode.Config{
-		NodeID:    *nodeID,
-		RaftAddr:  *raftAddr,
-		DataDir:   *dataDir,
-		Bootstrap: *bootstrap,
+		NodeID:    cfg.NodeID,
+		RaftAddr:  cfg.RaftAddr,
+		DataDir:   cfg.DataDir,
+		Bootstrap: cfg.Bootstrap,
 	}, fsm)
 	if err != nil {
 		appLog.Fatalf("start raft: %v", err)
 	}
 
 	mux := http.NewServeMux()
-	api.New(node, store).Register(mux)
-	appLog.Printf("conure-db running: http=%s raft=%s id=%s", *httpAddr, *raftAddr, *nodeID)
+	api.New(node, store).WithBarrierTimeout(cfg.BarrierTimeout).Register(mux)
+	appLog.Printf("conure-db running: http=%s raft=%s id=%s", cfg.HTTPAddr, cfg.RaftAddr, cfg.NodeID)
 	fmt.Println("Endpoints: /kv (GET, PUT, DELETE), /join (POST), /status (GET)")
-	if err := http.ListenAndServe(*httpAddr, mux); err != nil {
+	if err := http.ListenAndServe(cfg.HTTPAddr, mux); err != nil {
 		appLog.Fatalf("http: %v", err)
 	}
 }

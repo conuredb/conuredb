@@ -1,0 +1,19 @@
+# Conure DB configuration
+
+# Unique node identifier
+node_id: "node1"
+
+# Directory to store database and Raft state
+data_dir: "./data"
+
+# Raft bind/advertise address (host:port)
+raft_addr: "127.0.0.1:7001"
+
+# HTTP server bind address
+http_addr: ":8081"
+
+# Bootstrap a single-node cluster if no existing state
+bootstrap: false
+
+# Timeout for linearizable read barrier (e.g., "3s", "500ms")
+barrier_timeout: "3s"
