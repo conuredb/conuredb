@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/conure-db/conure-db/db"
 	"github.com/conure-db/conure-db/pkg/api"
@@ -45,10 +46,18 @@ func main() {
 		appLog.Fatalf("start raft: %v", err)
 	}
 
+	// Auto-join when not bootstrapping
+	if !cfg.Bootstrap {
+		appLog.Printf("Starting auto-join process for node %s", cfg.NodeID)
+		go joinCluster(cfg.NodeID, cfg.RaftAddr, 2*time.Second, 0)
+	} else {
+		appLog.Printf("Node %s is configured as bootstrap node", cfg.NodeID)
+	}
+
 	mux := http.NewServeMux()
 	api.New(node, store).WithBarrierTimeout(cfg.BarrierTimeout).Register(mux)
 	appLog.Printf("conure-db running: http=%s raft=%s id=%s", cfg.HTTPAddr, cfg.RaftAddr, cfg.NodeID)
-	fmt.Println("Endpoints: /kv (GET, PUT, DELETE), /join (POST), /status (GET)")
+	fmt.Println("Endpoints: /kv (GET, PUT, DELETE), /join (POST), /remove (POST), /status (GET), /raft/config, /raft/stats")
 	if err := http.ListenAndServe(cfg.HTTPAddr, mux); err != nil {
 		appLog.Fatalf("http: %v", err)
 	}

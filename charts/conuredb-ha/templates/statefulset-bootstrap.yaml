@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: conure-bootstrap
+  labels:
+    app.kubernetes.io/name: conuredb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # This annotation ensures the bootstrap StatefulSet is not affected by scaling operations
+    conuredb.io/stable: "true"
+    {{- if .Values.bootstrap.preventDeletion }}
+    # Prevent Helm from deleting this StatefulSet during uninstall (optional)
+    "helm.sh/resource-policy": keep
+    {{- end }}
+spec:
+  serviceName: conure-hs
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: conuredb
+      role: voter
+      bootstrap: "true"
+  # Use OnDelete to prevent automatic updates during scaling
+  updateStrategy:
+    type: OnDelete
+  # Ensure stable pod management
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: conuredb
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        role: voter
+        bootstrap: "true"
+      annotations:
+        # Keep pod template stable to prevent restarts during upgrades
+        conuredb.io/stable: "true"
+        # Prevent template changes from triggering pod restarts
+        checksum/config: {{ .Values | toYaml | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.security.runAsNonRoot }}
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      containers:
+        - name: conure
+          image: {{ .Values.bootstrap.image.repository }}:{{ .Values.bootstrap.image.tag }}
+          imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+          args:
+            - --node-id=$(HOSTNAME)
+            - --data-dir=/var/lib/conure
+            - --http-addr=:{{ .Values.service.httpPort }}
+            - --raft-addr=$(POD_IP):{{ .Values.service.raftPort }}
+            - --bootstrap=true
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: raft
+              containerPort: {{ .Values.service.raftPort }}
+            - name: http
+              containerPort: {{ .Values.service.httpPort }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/conure
+          readinessProbe:
+            httpGet: { path: /status, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /status, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      nodeSelector: {{ toYaml .Values.nodeSelector | nindent 8 }}
+      affinity: {{ toYaml .Values.affinity | nindent 8 }}
+      tolerations: {{ toYaml .Values.tolerations | nindent 8 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ if .Values.voters.pvc.storageClassName }}{{ .Values.voters.pvc.storageClassName | quote }}{{ else }}null{{ end }}
+        resources:
+          requests:
+            storage: {{ .Values.voters.pvc.size }}

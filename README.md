@@ -143,12 +143,3 @@ go build ./...
 # run tests
 go test ./...
 ```
-
-Project layout:
-
-- `btree/`: B-Tree pages, node serialization, storage
-- `pkg/raftnode/`: Raft wrapper (FSM, StartNode, helpers)
-- `pkg/api/`: HTTP server + endpoints
-- `pkg/config/`: YAML config loader
-- `cmd/conure-db/`: server entrypoint
-- `cmd/repl/`: remote-only REPL

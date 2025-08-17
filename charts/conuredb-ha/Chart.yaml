@@ -1,0 +1,18 @@
+apiVersion: v2
+name: conuredb-ha
+description: A high-availability ConureDB deployment with minimum 3 nodes
+type: application
+version: 0.1.0
+appVersion: "latest-2"
+keywords:
+  - database
+  - key-value
+  - raft
+  - high-availability
+  - clustering
+home: https://github.com/conuredb/conuredb
+sources:
+  - https://github.com/conuredb/conuredb
+maintainers:
+  - name: ConureDB Team
+    email: team@conuredb.io

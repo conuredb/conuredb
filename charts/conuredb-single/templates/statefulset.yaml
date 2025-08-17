@@ -1,0 +1,96 @@
+{{- if gt (int .Values.single.replicas) 1 }}
+{{- fail "Single-node deployment cannot have more than 1 replica. Use conuredb-ha chart for multi-node deployments." }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: conure-single
+  labels:
+    app: conuredb
+    component: single
+spec:
+  serviceName: conure-hs
+  replicas: 1  # Always 1 for single-node deployment
+  selector:
+    matchLabels:
+      app: conuredb
+      component: single
+  template:
+    metadata:
+      labels:
+        app: conuredb
+        component: single
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.security.runAsNonRoot }}
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      containers:
+      - name: conuredb
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+          - --node-id=$(HOSTNAME)
+          - --data-dir=/data
+          - --http-addr=:{{ .Values.service.httpPort }}
+          - --raft-addr=$(POD_IP):{{ .Values.service.raftPort }}
+          - --bootstrap=true
+        ports:
+        - containerPort: {{ .Values.service.httpPort }}
+          name: http
+        - containerPort: {{ .Values.service.raftPort }}
+          name: raft
+        env:
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        # Disable auto-join for single node
+        - name: CONURE_SEEDS
+          value: ""
+        - name: CONURE_AUTO_JOIN
+          value: "false"
+        resources:
+          {{- toYaml .Values.single.resources | nindent 10 }}
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.single.pvc.storageClassName }}
+      storageClassName: {{ .Values.single.pvc.storageClassName }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.single.pvc.size }}

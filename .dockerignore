@@ -1,0 +1,50 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*~
+
+# Test files
+*_test.go
+testdata/
+
+# Development files
+.git/
+.gitignore
+README.md
+*.md
+docs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data directories
+data/
+logs/
+
+# Helm charts (not needed in container)
+charts/
+
+# Scripts and tools
+*.sh
+test-*
+
+# Docker files
+Dockerfile*
+.dockerignore
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Local config files
+config.yaml
+*.local.*

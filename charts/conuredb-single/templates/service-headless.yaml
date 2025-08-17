@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: conure-hs
+  labels:
+    app: conuredb
+    component: headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: conuredb
+    component: single
+  ports:
+  - name: http
+    port: {{ .Values.service.httpPort }}
+    targetPort: http
+    protocol: TCP
+  - name: raft
+    port: {{ .Values.service.raftPort }}
+    targetPort: raft
+    protocol: TCP
