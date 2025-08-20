@@ -42,19 +42,21 @@ curl http://localhost:8081/status
 
 - **Bootstrap Node**: `conure-bootstrap-0` - stable anchor for the cluster
 - **Voter Nodes**: `conure-0`, `conure-1`, ... - additional voting members
-- **Services**: 
+- **Services**:
   - `conure-client` - load-balanced client access
   - `conure-hs` - headless service for internal communication
 
 ## Scaling Operations
 
 ### Scale Up
+
 ```bash
 # Scale to 5 nodes
 helm upgrade my-conuredb-ha ./charts/conuredb-ha --set voters.replicas=5
 ```
 
 ### Scale Down
+
 ```bash
 # Scale to 3 nodes (minimum)
 helm upgrade my-conuredb-ha ./charts/conuredb-ha --set voters.replicas=3
