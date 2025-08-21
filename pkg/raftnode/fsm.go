@@ -1,7 +1,9 @@
 package raftnode
 
 import (
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/conure-db/conure-db/db"
 	"github.com/hashicorp/raft"
@@ -31,7 +33,11 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 func (f *FSM) Restore(rc io.ReadCloser) error {
-	defer rc.Close()
+	defer func() {
+		if closeErr := rc.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close ReadCloser during restore: %v\n", closeErr)
+		}
+	}()
 	return f.DB.RestoreFrom(rc)
 }
 

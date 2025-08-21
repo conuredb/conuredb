@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -32,7 +33,11 @@ func Load(path string) (Config, error) {
 		}
 		return cfg, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close config file %q: %v\n", path, closeErr)
+		}
+	}()
 	data, err := io.ReadAll(f)
 	if err != nil {
 		return cfg, err

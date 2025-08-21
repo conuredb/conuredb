@@ -16,7 +16,9 @@ const (
 // TestPerformancePut measures the performance of a single Put operation
 func TestPerformancePut(t *testing.T) {
 	// Remove any existing test database
-	os.Remove(perfTestDBPath)
+	if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+		t.Logf("Warning: failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	database, err := db.Open(perfTestDBPath)
@@ -24,8 +26,12 @@ func TestPerformancePut(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 	defer func() {
-		database.Close()
-		os.Remove(perfTestDBPath)
+		if closeErr := database.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close test database: %v", closeErr)
+		}
+		if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to remove test database: %v", err)
+		}
 	}()
 
 	// Measure a single Put operation
@@ -44,7 +50,9 @@ func TestPerformancePut(t *testing.T) {
 // TestPerformanceGet measures the performance of a single Get operation
 func TestPerformanceGet(t *testing.T) {
 	// Remove any existing test database
-	os.Remove(perfTestDBPath)
+	if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+		t.Logf("Warning: failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	database, err := db.Open(perfTestDBPath)
@@ -52,8 +60,12 @@ func TestPerformanceGet(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 	defer func() {
-		database.Close()
-		os.Remove(perfTestDBPath)
+		if closeErr := database.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close test database: %v", closeErr)
+		}
+		if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to remove test database: %v", err)
+		}
 	}()
 
 	// Insert a key-value pair
@@ -77,7 +89,9 @@ func TestPerformanceGet(t *testing.T) {
 // TestPerformanceDelete measures the performance of a single Delete operation
 func TestPerformanceDelete(t *testing.T) {
 	// Remove any existing test database
-	os.Remove(perfTestDBPath)
+	if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+		t.Logf("Warning: failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	database, err := db.Open(perfTestDBPath)
@@ -85,8 +99,12 @@ func TestPerformanceDelete(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 	defer func() {
-		database.Close()
-		os.Remove(perfTestDBPath)
+		if closeErr := database.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close test database: %v", closeErr)
+		}
+		if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to remove test database: %v", err)
+		}
 	}()
 
 	// Insert a key-value pair
@@ -109,7 +127,9 @@ func TestPerformanceDelete(t *testing.T) {
 // TestPerformanceSync measures the performance of a single Sync operation
 func TestPerformanceSync(t *testing.T) {
 	// Remove any existing test database
-	os.Remove(perfTestDBPath)
+	if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+		t.Logf("Warning: failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	database, err := db.Open(perfTestDBPath)
@@ -117,8 +137,12 @@ func TestPerformanceSync(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 	defer func() {
-		database.Close()
-		os.Remove(perfTestDBPath)
+		if closeErr := database.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close test database: %v", closeErr)
+		}
+		if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to remove test database: %v", err)
+		}
 	}()
 
 	// Insert a key-value pair
@@ -141,7 +165,9 @@ func TestPerformanceSync(t *testing.T) {
 // TestPerformanceMultipleOperations measures the performance of multiple operations
 func TestPerformanceMultipleOperations(t *testing.T) {
 	// Remove any existing test database
-	os.Remove(perfTestDBPath)
+	if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+		t.Logf("Warning: failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	database, err := db.Open(perfTestDBPath)
@@ -149,8 +175,12 @@ func TestPerformanceMultipleOperations(t *testing.T) {
 		t.Fatalf("Failed to open database: %v", err)
 	}
 	defer func() {
-		database.Close()
-		os.Remove(perfTestDBPath)
+		if closeErr := database.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close test database: %v", closeErr)
+		}
+		if err := os.Remove(perfTestDBPath); err != nil && !os.IsNotExist(err) {
+			t.Logf("Warning: failed to remove test database: %v", err)
+		}
 	}()
 
 	// Perform a sequence of operations

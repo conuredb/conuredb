@@ -58,7 +58,11 @@ func (rc *RemoteClient) Get(key string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close response body in Get: %v\n", closeErr)
+			}
+		}()
 		if resp.StatusCode == http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
 			return string(b), nil
@@ -82,7 +86,11 @@ func (rc *RemoteClient) Put(key, value string) error {
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close response body in Put: %v\n", closeErr)
+			}
+		}()
 		if resp.StatusCode == http.StatusOK {
 			return nil
 		}
@@ -105,7 +113,11 @@ func (rc *RemoteClient) Delete(key string) error {
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close response body in Delete: %v\n", closeErr)
+			}
+		}()
 		if resp.StatusCode == http.StatusOK {
 			return nil
 		}
@@ -152,7 +164,11 @@ func runRemoteREPL(base string) {
 		fmt.Printf("Failed to initialize readline: %v\n", err)
 		os.Exit(1)
 	}
-	defer rl.Close()
+	defer func() {
+		if closeErr := rl.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close readline: %v\n", closeErr)
+		}
+	}()
 
 	for {
 		line, err := rl.Readline()

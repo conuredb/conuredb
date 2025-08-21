@@ -133,10 +133,16 @@ func (t *BTree) Put(key []byte, value []byte) error {
 		rootNode := NewInternalNode(newRootID)
 
 		// Add the old root as a child
-		rootNode.AddChild(0, root.id)
+		if err := rootNode.AddChild(0, root.id); err != nil {
+			t.storage.abortTransaction()
+			return err
+		}
 
 		// Add the new node (returned from insert) as a child
-		rootNode.AddChild(1, newRoot.id)
+		if err := rootNode.AddChild(1, newRoot.id); err != nil {
+			t.storage.abortTransaction()
+			return err
+		}
 
 		// Add the split key from the new node
 		rootNode.AddItem(Item{Key: newRoot.items[0].Key, Value: nil})
@@ -300,7 +306,9 @@ func (t *BTree) insert(node *Node, key []byte, value []byte) (*Node, bool, error
 	}
 
 	nodeCopy.AddItem(Item{Key: splitKey, Value: nil})
-	nodeCopy.AddChild(childPos+1, newChild.id)
+	if err := nodeCopy.AddChild(childPos+1, newChild.id); err != nil {
+		return nil, false, err
+	}
 
 	// Maintain new child's parent pointer
 	if err := t.setParent(newChild.id, nodeCopy.id); err != nil {
@@ -543,7 +551,9 @@ func (t *BTree) rebalanceLeaf(node *Node, parent *Node) (*Node, error) {
 			// Borrow the rightmost item from the left sibling
 			item := leftSiblingCopy.items[leftSiblingCopy.count-1]
 			nodeCopy.AddItem(item)
-			leftSiblingCopy.RemoveItem(int(leftSiblingCopy.count) - 1)
+			if err := leftSiblingCopy.RemoveItem(int(leftSiblingCopy.count) - 1); err != nil {
+				return nil, err
+			}
 
 			// Update the parent's key
 			parentCopy.items[pos-1].Key = nodeCopy.items[0].Key
@@ -589,7 +599,9 @@ func (t *BTree) rebalanceLeaf(node *Node, parent *Node) (*Node, error) {
 			// Borrow the leftmost item from the right sibling
 			item := rightSiblingCopy.items[0]
 			nodeCopy.AddItem(item)
-			rightSiblingCopy.RemoveItem(0)
+			if err := rightSiblingCopy.RemoveItem(0); err != nil {
+				return nil, err
+			}
 
 			// Update the parent's key
 			parentCopy.items[pos].Key = rightSiblingCopy.items[0].Key
@@ -635,8 +647,12 @@ func (t *BTree) rebalanceLeaf(node *Node, parent *Node) (*Node, error) {
 		}
 
 		// Remove the node from the parent
-		parentCopy.RemoveItem(pos - 1)
-		parentCopy.RemoveChild(pos)
+		if err := parentCopy.RemoveItem(pos - 1); err != nil {
+			return nil, err
+		}
+		if err := parentCopy.RemoveChild(pos); err != nil {
+			return nil, err
+		}
 
 		// Save the nodes
 		if err := t.storage.PutNode(leftSiblingCopy); err != nil {
@@ -677,8 +693,12 @@ func (t *BTree) rebalanceLeaf(node *Node, parent *Node) (*Node, error) {
 		}
 
 		// Remove the right sibling from the parent
-		parentCopy.RemoveItem(pos)
-		parentCopy.RemoveChild(pos + 1)
+		if err := parentCopy.RemoveItem(pos); err != nil {
+			return nil, err
+		}
+		if err := parentCopy.RemoveChild(pos + 1); err != nil {
+			return nil, err
+		}
 
 		// Save the nodes
 		if err := t.storage.PutNode(nodeCopy); err != nil {
@@ -740,7 +760,9 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 
 			// Move the left sibling's rightmost key up to the parent
 			parentCopy.items[pos-1].Key = leftSiblingCopy.items[leftSiblingCopy.count-1].Key
-			leftSiblingCopy.RemoveItem(int(leftSiblingCopy.count) - 1)
+			if err := leftSiblingCopy.RemoveItem(int(leftSiblingCopy.count) - 1); err != nil {
+				return nil, err
+			}
 
 			// Move the left sibling's rightmost child to the node
 			childID := leftSiblingCopy.children[len(leftSiblingCopy.children)-1]
@@ -796,7 +818,9 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 
 			// Move the right sibling's leftmost key up to the parent
 			parentCopy.items[pos].Key = rightSiblingCopy.items[0].Key
-			rightSiblingCopy.RemoveItem(0)
+			if err := rightSiblingCopy.RemoveItem(0); err != nil {
+				return nil, err
+			}
 
 			// Move the right sibling's leftmost child to the node
 			childID := rightSiblingCopy.children[0]
@@ -860,8 +884,12 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 		}
 
 		// Remove the node from the parent
-		parentCopy.RemoveItem(pos - 1)
-		parentCopy.RemoveChild(pos)
+		if err := parentCopy.RemoveItem(pos - 1); err != nil {
+			return nil, err
+		}
+		if err := parentCopy.RemoveChild(pos); err != nil {
+			return nil, err
+		}
 
 		// Save the nodes
 		if err := t.storage.PutNode(leftSiblingCopy); err != nil {
@@ -926,8 +954,12 @@ func (t *BTree) rebalanceInternal(node *Node, parent *Node) (*Node, error) {
 		}
 
 		// Remove the right sibling from the parent
-		parentCopy.RemoveItem(pos)
-		parentCopy.RemoveChild(pos + 1)
+		if err := parentCopy.RemoveItem(pos); err != nil {
+			return nil, err
+		}
+		if err := parentCopy.RemoveChild(pos + 1); err != nil {
+			return nil, err
+		}
 
 		// Save the nodes
 		if err := t.storage.PutNode(nodeCopy); err != nil {

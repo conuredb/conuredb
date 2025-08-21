@@ -18,7 +18,9 @@ const (
 // setupLoadTest creates a new database for load testing
 func setupLoadTest() (*db.DB, error) {
 	// Remove any existing test database
-	os.Remove(loadTestDBPath)
+	if err := os.Remove(loadTestDBPath); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to remove existing test database: %v", err)
+	}
 
 	// Create a new database
 	return db.Open(loadTestDBPath)
@@ -26,8 +28,12 @@ func setupLoadTest() (*db.DB, error) {
 
 // cleanupLoadTest closes and removes the test database
 func cleanupLoadTest(database *db.DB) {
-	database.Close()
-	os.Remove(loadTestDBPath)
+	if closeErr := database.Close(); closeErr != nil {
+		fmt.Printf("Warning: failed to close test database: %v\n", closeErr)
+	}
+	if err := os.Remove(loadTestDBPath); err != nil && !os.IsNotExist(err) {
+		fmt.Printf("Warning: failed to remove test database: %v\n", err)
+	}
 }
 
 // TestSingleKeyValue tests inserting a single small key-value pair

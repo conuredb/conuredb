@@ -33,7 +33,11 @@ func main() {
 	if err != nil {
 		appLog.Fatalf("open db: %v", err)
 	}
-	defer store.Close()
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			appLog.Printf("Warning: failed to close database: %v", closeErr)
+		}
+	}()
 
 	fsm := &raftnode.FSM{DB: store}
 	node, err := raftnode.StartNode(raftnode.Config{

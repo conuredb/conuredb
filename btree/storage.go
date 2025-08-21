@@ -63,13 +63,17 @@ func OpenStorage(path string) (*Storage, error) {
 	if info.Size() == 0 {
 		// Initialize a new file
 		if err := storage.initializeNewFile(); err != nil {
-			file.Close()
+			if closeErr := file.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to initialize file: %v (also failed to close: %v)", err, closeErr)
+			}
 			return nil, err
 		}
 	} else {
 		// Read the header
 		if err := storage.readHeader(); err != nil {
-			file.Close()
+			if closeErr := file.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to read header: %v (also failed to close: %v)", err, closeErr)
+			}
 			return nil, err
 		}
 	}

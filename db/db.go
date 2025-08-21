@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -121,7 +122,11 @@ func (db *DB) SnapshotTo(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close database file during snapshot: %v\n", closeErr)
+		}
+	}()
 
 	_, err = io.Copy(w, f)
 	return err
@@ -150,11 +155,15 @@ func (db *DB) RestoreFrom(r io.Reader) error {
 		return err
 	}
 	if _, err := io.Copy(tmpFile, r); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close temp file after copy error: %v\n", closeErr)
+		}
 		return err
 	}
 	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close temp file after sync error: %v\n", closeErr)
+		}
 		return err
 	}
 	if err := tmpFile.Close(); err != nil {
