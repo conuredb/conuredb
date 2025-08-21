@@ -1,13 +1,12 @@
 image:
   repository: docker.io/conuredb/conuredb
-  tag: latest-2
+  tag: latest
   pullPolicy: Always
 
-# Bootstrap node uses a stable image to prevent recreation during scaling
 bootstrap:
   image:
     repository: docker.io/conuredb/conuredb
-    tag: latest-2
+    tag: latest
     pullPolicy: IfNotPresent
   # Set to true to prevent deletion during helm uninstall (useful for data preservation)
   preventDeletion: false
@@ -29,20 +28,6 @@ voters:
   pvc:
     storageClassName: ""
     size: 10Gi
-
-# Arbiter nodes for larger clusters (optional)
-arbiter:
-  mode: never  # Can be "never", "auto", or "always"
-  resources:
-    requests:
-      cpu: 25m
-      memory: 64Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
-  pvc:
-    storageClassName: ""
-    size: 2Gi
 
 join:
   seeds:

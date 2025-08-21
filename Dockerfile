@@ -18,7 +18,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy source and build
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
-    go build -ldflags "-s -w" -o /out/conure-db ./cmd/conure-db
+    go build -ldflags "-s -w" -o /out/conure-db ./cmd/conure-db && \
+    go build -ldflags "-s -w" -o /out/conuresh ./cmd/repl
 
 ## Runtime stage
 FROM alpine:3.19
@@ -31,6 +32,7 @@ RUN apk add --no-cache ca-certificates curl \
 
 # Copy binary
 COPY --from=builder /out/conure-db /bin/conure-db
+COPY --from=builder /out/conuresh /bin/conuresh
 
 # Switch to non-root user
 USER conure

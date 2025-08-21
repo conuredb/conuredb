@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/chzyer/readline"
 )
 
 type leaderHint struct {
@@ -120,6 +121,16 @@ func (rc *RemoteClient) Delete(key string) error {
 	return fmt.Errorf("leader redirect loop")
 }
 
+// completer provides auto-completion for REPL commands
+var completer = readline.NewPrefixCompleter(
+	readline.PcItem("help"),
+	readline.PcItem("get"),
+	readline.PcItem("put"),
+	readline.PcItem("delete"),
+	readline.PcItem("exit"),
+	readline.PcItem("quit"),
+)
+
 func runRemoteREPL(base string) {
 	client := &RemoteClient{HTTP: &http.Client{}}
 	u, err := url.Parse(base)
@@ -129,17 +140,36 @@ func runRemoteREPL(base string) {
 	}
 	client.Base = u
 
-	scanner := bufio.NewScanner(os.Stdin)
+	// Configure readline with history and completion
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "> ",
+		HistoryFile:     "/tmp/.conuresh_history",
+		AutoComplete:    completer,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		fmt.Printf("Failed to initialize readline: %v\n", err)
+		os.Exit(1)
+	}
+	defer rl.Close()
+
 	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
+		line, err := rl.Readline()
+		if err != nil { // io.EOF, readline.ErrInterrupt
 			break
 		}
-		line := scanner.Text()
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
 		parts := strings.Fields(line)
 		if len(parts) == 0 {
 			continue
 		}
+
 		switch parts[0] {
 		case "help":
 			printHelp()

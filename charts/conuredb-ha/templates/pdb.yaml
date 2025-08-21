@@ -1,12 +1,8 @@
 {{- if and .Values.pdb.enabled (gt (int .Values.voters.replicas) 1) }}
-{{- /* Calculate majority: floor((voters + arbiter)/2) + 1; arbiter counts if mode=always OR (mode=auto AND replicas even) */ -}}
+{{- /* Calculate majority: floor(voters/2) + 1 */ -}}
 {{- /* Total voters include bootstrap (1) + voters.replicas - 1 = voters.replicas */ -}}
 {{- $rep := int .Values.voters.replicas -}}
-{{- $arb := 0 -}}
-{{- if or (eq .Values.arbiter.mode "always") (and (eq .Values.arbiter.mode "auto") (eq (mod $rep 2) 0)) -}}
-{{- $arb = 1 -}}
-{{- end -}}
-{{- $maj := add (div (add $rep $arb) 2) 1 -}}
+{{- $maj := add (div $rep 2) 1 -}}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

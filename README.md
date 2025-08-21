@@ -12,9 +12,10 @@ A B-Tree based key-value store with copy-on-write pages and a Raft-backed distri
 - **B-Tree Storage**: Efficient key-value storage with copy-on-write pages
 - **HTTP API**: RESTful interface for all operations
 - **Kubernetes Native**: Production-ready Helm charts with automated scaling
-- **High Availability**: Smart quorum management with optional arbiter nodes
+- **High Availability**: Smart quorum management for distributed consensus
 - **Consistent Reads**: Linearizable leader reads, optional stale follower reads
 - **Zero-Downtime Scaling**: Automated node addition/removal during scaling operations
+- **Interactive Shell**: `conuresh` REPL for easy database interaction
 
 ## 🔧 Consistency Model
 
@@ -22,15 +23,6 @@ A B-Tree based key-value store with copy-on-write pages and a Raft-backed distri
 - **Reads**:
   - **Leader reads**: Linearizable (API issues a Raft barrier)
   - **Follower reads**: Eventually consistent with `stale=true` parameter
-- YAML config + CLI overrides
-- Remote-only REPL that talks to the HTTP API and follows leader redirects
-
-## Consistency model
-
-- Writes: linearizable via Raft (ack after commit on quorum)
-- Reads:
-  - Leader reads are linearizable (API issues a Raft barrier)
-  - Follower reads with `stale=true` may lag (eventually consistent)
 
 ## 📦 Installation
 
@@ -46,6 +38,9 @@ docker run -d --name conuredb \
 # Test the API
 curl -X PUT "http://localhost:8081/kv?key=hello&value=world"
 curl "http://localhost:8081/kv?key=hello"
+
+# Use the interactive shell
+docker exec -it conuredb conuresh
 ```
 
 ### Kubernetes Deployment
@@ -75,7 +70,7 @@ cd conure-db
 
 # Build binaries
 go build ./cmd/conure-db
-go build ./cmd/repl
+go build ./cmd/conuresh
 
 # Run tests
 go test ./...
@@ -94,17 +89,12 @@ ConureDB uses a multi-component architecture optimized for Kubernetes:
 
 - **Bootstrap Node**: Dedicated StatefulSet for cluster initialization
 - **Voter Nodes**: Scalable StatefulSet for data storage and voting
-- **Arbiter Nodes**: Optional tie-breaker nodes for even-numbered clusters
 - **Smart Scaling**: Automated Raft membership management during scaling
 
 ### Quorum Logic
 
-- **Odd clusters** (3, 5, 7 nodes): Natural majority, no arbiter needed
-- **Even clusters** (2, 4, 6 nodes): Arbiter node added automatically for quorum
-- **Arbiter modes**:
-  - `auto` (default): Arbiter added only for even-numbered clusters
-  - `always`: Always deploy an arbiter
-  - `never`: Never deploy an arbiter
+- **Minimum cluster size**: 3 nodes for production deployments
+- **Majority required**: Floor(N/2) + 1 nodes must be available for writes
 
 ## ⚙️ Configuration
 
@@ -219,39 +209,39 @@ curl 'http://localhost:8081/raft/config'
 ```bash
 # Store data
 curl -X PUT "http://localhost:8081/kv?key=app&value=conuredb"
-echo '{"database":"prod","version":"1.0"}' | \
-  curl -X PUT "http://localhost:8081/kv?key=config" -d @-
 
 # Read data
 curl "http://localhost:8081/kv?key=app"
-curl "http://localhost:8081/kv?key=config&stale=true"  # Allow stale reads
 
 # Cluster operations
 curl "http://localhost:8081/status"
 curl "http://localhost:8081/raft/config"
 ```
 
-## 🎮 Interactive REPL
+## 🎮 Interactive Shell (ConureShell)
 
-ConureDB includes a remote REPL that connects to the HTTP API:
+ConureDB includes a remote shell that connects to the HTTP API:
 
 ```bash
 # Connect to default server (localhost:8081)
-./repl
+./conuresh
 
 # Connect to specific server
-./repl --server=http://127.0.0.1:8081
+./conuresh --server=http://127.0.0.1:8081
+
+# When using Docker
+docker exec -it <container-name> conuresh
 ```
 
-### REPL Commands
+### Shell Commands
 
 - `put <key> <value>` - Store a key-value pair
 - `get <key>` - Retrieve a value
 - `delete <key>` - Delete a key
 - `help` - Show available commands
-- `exit` - Exit the REPL
+- `exit` - Exit the shell
 
-The REPL automatically follows leader redirects and handles cluster topology changes.
+The shell automatically follows leader redirects and handles cluster topology changes.
 
 ## ☸️ Kubernetes Deployment
 
@@ -278,7 +268,7 @@ helm install mydb ./charts/conuredb-single \
 #### High Availability Chart (`conuredb-ha`)
 
 - **Use case**: Production environments requiring high availability
-- **Features**: Multi-node cluster, automated scaling, arbiter support
+- **Features**: Multi-node cluster with automated scaling
 - **Scaling**: Minimum 3 nodes, automated Raft membership management
 
 ```bash
@@ -335,9 +325,6 @@ voters:
       memory: 128Mi
   pvc:
     size: 1Gi
-
-arbiter:
-  mode: never
 ```
 
 #### Production Cluster
@@ -542,7 +529,7 @@ go build ./...
 
 # Build specific components
 go build -o bin/conure-db ./cmd/conure-db
-go build -o bin/repl ./cmd/repl
+go build -o bin/conuresh ./cmd/repl
 
 # Cross-compilation
 GOOS=linux GOARCH=amd64 go build -o bin/conure-db-linux ./cmd/conure-db
@@ -576,6 +563,10 @@ docker build -t conuredb/conuredb:dev .
 
 # Run containerized tests
 docker run --rm conuredb/conuredb:dev go test ./...
+
+# Run a container and access the shell
+docker run -d --name conuredb-test -p 8081:8081 conuredb/conuredb:dev --bootstrap
+docker exec -it conuredb-test conuresh
 
 # Multi-stage build for minimal image
 docker build --target=production -t conuredb/conuredb:latest .

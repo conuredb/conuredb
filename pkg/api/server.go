@@ -201,12 +201,25 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"leader": string(s.node.Leader())})
 			return
 		}
-		value, err := io.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(err.Error()))
-			return
+
+		var (
+			value []byte
+			err   error
+		)
+
+		// Check if value is provided as query parameter
+		if valueParam := r.URL.Query().Get("value"); valueParam != "" {
+			value = []byte(valueParam)
+		} else {
+			// Read value from request body
+			value, err = io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(err.Error()))
+				return
+			}
 		}
+
 		cmd := raftnode.Command{Type: raftnode.CmdPut, Key: key, Value: value}
 		if err := s.node.Apply(cmd, 5*time.Second); err != nil {
 			log.Printf("apply error: %v", err)
