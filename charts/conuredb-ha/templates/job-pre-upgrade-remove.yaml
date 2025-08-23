@@ -1,0 +1,136 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pre-upgrade-remove
+  labels:
+    app.kubernetes.io/name: conuredb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: conuredb
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        job-name: {{ .Release.Name }}-pre-upgrade-remove
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ .Release.Name }}-pre-upgrade-sa
+      containers:
+        - name: kubectl
+          image: bitnami/kubectl:latest
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              
+              # Determine current and target replica count
+              CURRENT_REPLICAS=$(kubectl get statefulset conure -o jsonpath='{.spec.replicas}')
+              TARGET_REPLICAS={{ sub (int .Values.voters.replicas) 1 }}
+              
+              echo "Current replicas: $CURRENT_REPLICAS, Target replicas: $TARGET_REPLICAS"
+              
+              # Only proceed with node removal if we're scaling down
+              if [ "$TARGET_REPLICAS" -lt "$CURRENT_REPLICAS" ]; then
+                echo "Detected scale-down operation, will remove excess nodes"
+                
+                # Find current nodes and identify which ones to remove
+                NODES_TO_REMOVE=$(($CURRENT_REPLICAS - $TARGET_REPLICAS))
+                START_IDX=$(($TARGET_REPLICAS + 1))  # 0-based indexing
+                
+                echo "Need to remove $NODES_TO_REMOVE nodes starting from index $START_IDX"
+                
+                # Find current leader
+                for i in $(seq 0 $(($CURRENT_REPLICAS-1))); do
+                  LEADER=$(kubectl exec -it conure-$i -- curl -s http://localhost:{{ .Values.service.httpPort }}/status 2>/dev/null | grep -o '"leader":"[^"]*"' | cut -d'"' -f4 || echo "")
+                  if [ -n "$LEADER" ] && [ "$LEADER" != "" ]; then
+                    echo "Found leader: $LEADER"
+                    # Extract just IP from leader string (removing port if present)
+                    LEADER_IP=$(echo $LEADER | cut -d: -f1)
+                    echo "Leader IP: $LEADER_IP"
+                    break
+                  fi
+                  echo "Node conure-$i is not the leader or couldn't determine leader"
+                done
+                
+                if [ -z "$LEADER" ]; then
+                  echo "ERROR: Could not determine cluster leader. Aborting removal."
+                  exit 1
+                fi
+                
+                # Find the leader pod name using the headless service
+                echo "Looking up leader pod through headless service"
+                LEADER_POD=$(kubectl get pods -l app.kubernetes.io/name=conuredb -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.podIP}{"\n"}{end}' | grep $LEADER_IP | cut -f1)
+                
+                # Remove nodes one by one
+                for i in $(seq $START_IDX $CURRENT_REPLICAS); do
+                  NODE_ID="conure-$((i-1))"
+                  echo "Removing node $NODE_ID via leader $LEADER"
+                  
+                  # Call the /remove API on the leader
+                  echo "Using leader pod: $LEADER_POD"
+                  kubectl exec -it $LEADER_POD -- curl -s -X POST "http://localhost:{{ .Values.service.httpPort }}/remove" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"ID\":\"$NODE_ID\"}" \
+                    --max-time {{ .Values.scaling.gracePeriodSeconds }}
+                  
+                  echo "Waiting {{ .Values.scaling.gracePeriodSeconds }} seconds for removal to complete"
+                  sleep {{ .Values.scaling.gracePeriodSeconds }}
+                done
+                
+                echo "Node removal completed successfully"
+              else
+                echo "No scale-down detected or scaling up - no nodes need to be removed"
+              fi
+              
+              echo "Pre-upgrade hook completed"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-pre-upgrade-sa
+  labels:
+    app.kubernetes.io/name: conuredb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-pre-upgrade-role
+  labels:
+    app.kubernetes.io/name: conuredb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-pre-upgrade-rolebinding
+  labels:
+    app.kubernetes.io/name: conuredb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-pre-upgrade-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-pre-upgrade-sa

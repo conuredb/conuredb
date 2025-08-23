@@ -1,0 +1,124 @@
+{{- if lt (int .Values.voters.replicas) 3 }}
+{{- fail "HA deployment requires minimum 3 voter replicas" }}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: conure
+  labels:
+    app.kubernetes.io/name: conuredb
+spec:
+  serviceName: conure-hs
+  replicas: {{ sub (int .Values.voters.replicas) 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: conuredb
+      role: voter
+      bootstrap: "false"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: conuredb
+        role: voter
+        bootstrap: "false"
+    spec:
+      initContainers:
+        - name: wait-for-bootstrap
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command: 
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for bootstrap node conure-bootstrap-0 to be ready..."
+              until curl -f http://conure-bootstrap-0.conure-hs:{{ .Values.service.httpPort }}/status; do
+                echo "Bootstrap node not ready, waiting..."
+                sleep {{ .Values.join.backoffSeconds }}
+              done
+              echo "Bootstrap node is ready, proceeding..."
+      securityContext:
+        runAsNonRoot: {{ .Values.security.runAsNonRoot }}
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      containers:
+        - name: conure
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --node-id=$(HOSTNAME)
+            - --data-dir=/var/lib/conure
+            - --http-addr=:{{ .Values.service.httpPort }}
+            - --raft-addr=$(POD_IP):{{ .Values.service.raftPort }}
+            - --bootstrap=false
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONURE_SEEDS
+              value: {{ join "," .Values.join.seeds | quote }}
+          ports:
+            - name: raft
+              containerPort: {{ .Values.service.raftPort }}
+            - name: http
+              containerPort: {{ .Values.service.httpPort }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/conure
+          readinessProbe:
+            httpGet: { path: /status, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /status, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    set -e
+                    echo "Gracefully leaving raft cluster..."
+                    
+                    # Try to get leader multiple times
+                    for i in $(seq 1 10); do
+                      LEADER=$(curl -s http://127.0.0.1:{{ .Values.service.httpPort }}/status 2>/dev/null | sed -n 's/.*"leader":"\([^"]*\)".*/\1/p' || echo "")
+                      if [ -n "$LEADER" ] && [ "$LEADER" != "" ]; then
+                        break
+                      fi
+                      echo "Waiting for leader... ($i/10)"
+                      sleep 1
+                    done
+                    
+                    if [ -n "$LEADER" ] && [ "$LEADER" != "" ]; then
+                      echo "Removing $HOSTNAME from raft cluster via leader $LEADER"
+                      curl -s -f -X POST "http://$LEADER/remove" \
+                        -H 'Content-Type: application/json' \
+                        -d "{\"ID\":\"$HOSTNAME\"}" \
+                        --max-time 10 || echo "Warning: Failed to remove node gracefully"
+                    else
+                      echo "Warning: No leader found, cannot remove node gracefully"
+                    fi
+                    
+                    echo "PreStop hook completed"
+          resources:
+            {{- toYaml .Values.voters.resources | nindent 12 }}
+      nodeSelector: {{ toYaml .Values.nodeSelector | nindent 8 }}
+      affinity: {{ toYaml .Values.affinity | nindent 8 }}
+      tolerations: {{ toYaml .Values.tolerations | nindent 8 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ if .Values.voters.pvc.storageClassName }}{{ .Values.voters.pvc.storageClassName | quote }}{{ else }}null{{ end }}
+        resources:
+          requests:
+            storage: {{ .Values.voters.pvc.size }}

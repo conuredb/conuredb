@@ -1,0 +1,56 @@
+image:
+  repository: docker.io/conuredb/conuredb
+  tag: latest
+  pullPolicy: Always
+
+bootstrap:
+  image:
+    repository: docker.io/conuredb/conuredb
+    tag: latest
+    pullPolicy: IfNotPresent
+  # Set to true to prevent deletion during helm uninstall (useful for data preservation)
+  preventDeletion: false
+
+service:
+  httpPort: 8081
+  raftPort: 7001
+
+# HA configuration - minimum 3 replicas enforced
+voters:
+  replicas: 3  # Default to 3, minimum enforced in templates
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  pvc:
+    storageClassName: ""
+    size: 10Gi
+
+join:
+  seeds:
+    - http://conure-bootstrap-0.conure-hs:8081
+  backoffSeconds: 2
+  retries: 0
+
+# Use fsGroup to let Kubernetes handle volume permissions
+security:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+pdb:
+  enabled: true
+
+# Scaling behavior configuration
+scaling:
+  # Whether to automatically remove nodes during scale-down operations
+  autoRemoveNodes: true
+  # Grace period for node removal operations
+  gracePeriodSeconds: 30
+
+nodeSelector: {}
+affinity: {}
+tolerations: []

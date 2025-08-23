@@ -1,0 +1,36 @@
+image:
+  repository: docker.io/conuredb/conuredb
+  tag: latest-2
+  pullPolicy: Always
+
+service:
+  httpPort: 8081
+  raftPort: 7001
+
+# Single node configuration - locked to 1 replica
+single:
+  replicas: 1  # MUST be 1 - chart will fail if set higher. Use conuredb-ha for multi-node.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  pvc:
+    storageClassName: ""
+    size: 10Gi
+
+# Use fsGroup to let Kubernetes handle volume permissions
+security:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# No PDB for single node - it would prevent all operations
+pdb:
+  enabled: false
+
+nodeSelector: {}
+affinity: {}
+tolerations: []

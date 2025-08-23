@@ -1,0 +1,28 @@
+{{- if and .Values.pdb.enabled (gt (int .Values.voters.replicas) 1) }}
+{{- /* Calculate majority: floor(voters/2) + 1 */ -}}
+{{- /* Total voters include bootstrap (1) + voters.replicas - 1 = voters.replicas */ -}}
+{{- $rep := int .Values.voters.replicas -}}
+{{- $maj := add (div $rep 2) 1 -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: conure-pdb
+spec:
+  minAvailable: {{ $maj }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: conuredb
+      bootstrap: "false"  # Exclude bootstrap pod from PDB to prevent disruption
+---
+# Separate PDB for bootstrap to ensure it's never disrupted
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: conure-bootstrap-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: conuredb
+      bootstrap: "true"
+{{- end }}

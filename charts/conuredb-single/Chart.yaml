@@ -1,0 +1,17 @@
+apiVersion: v2
+name: conuredb-single
+description: A simple single-node ConureDB deployment
+type: application
+version: 0.1.0
+appVersion: "latest-2"
+keywords:
+  - database
+  - key-value
+  - raft
+  - single-node
+home: https://github.com/conuredb/conuredb
+sources:
+  - https://github.com/conuredb/conuredb
+maintainers:
+  - name: ConureDB Team
+    email: team@conuredb.io
