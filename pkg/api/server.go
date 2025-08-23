@@ -52,7 +52,7 @@ func (s *Server) handleRaftConfig(w http.ResponseWriter, r *http.Request) {
 	f := s.node.Raft().GetConfiguration()
 	if err := f.Error(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error() + "\n"))
 		return
 	}
 	cfg := f.Configuration()
@@ -104,7 +104,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	var body req
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error() + "\n"))
 		return
 	}
 	if !s.node.IsLeader() {
@@ -114,11 +114,11 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.node.AddVoter(body.ID, body.RaftAddr); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error() + "\n"))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK\n"))
 }
 
 func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
 	var body req
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error() + "\n"))
 		return
 	}
 	if !s.node.IsLeader() {
@@ -141,18 +141,18 @@ func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
 	f := s.node.Raft().RemoveServer(raft.ServerID(body.ID), 0, 0)
 	if err := f.Error(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error() + "\n"))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK\n"))
 }
 
 func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 	key := []byte(r.URL.Query().Get("key"))
 	if len(key) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("missing key"))
+		_, _ = w.Write([]byte("missing key\n"))
 		return
 	}
 
@@ -167,17 +167,17 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 			barrier := s.node.Raft().Barrier(s.barrierTimeout)
 			if err := barrier.Error(); err != nil {
 				w.WriteHeader(http.StatusServiceUnavailable)
-				_, _ = w.Write([]byte(err.Error()))
+				_, _ = w.Write([]byte(err.Error() + "\n"))
 				return
 			}
 			val, err := s.db.Get(key)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(err.Error()))
+				_, _ = w.Write([]byte(err.Error() + "\n"))
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(val)
+			_, _ = w.Write(append(val, '\n'))
 			return
 		}
 		// follower: serve stale read if requested; else indicate leader
@@ -185,11 +185,11 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 			val, err := s.db.Get(key)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(err.Error()))
+				_, _ = w.Write([]byte(err.Error() + "\n"))
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(val)
+			_, _ = w.Write(append(val, '\n'))
 			return
 		}
 		w.WriteHeader(http.StatusConflict)
@@ -215,7 +215,7 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 			value, err = io.ReadAll(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(err.Error()))
+				_, _ = w.Write([]byte(err.Error() + "\n"))
 				return
 			}
 		}
@@ -224,11 +224,11 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 		if err := s.node.Apply(cmd, 5*time.Second); err != nil {
 			log.Printf("apply error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(err.Error() + "\n"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK\n"))
 
 	case http.MethodDelete:
 		if !s.node.IsLeader() {
@@ -239,11 +239,11 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 		cmd := raftnode.Command{Type: raftnode.CmdDelete, Key: key}
 		if err := s.node.Apply(cmd, 5*time.Second); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(err.Error() + "\n"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK\n"))
 
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)

@@ -65,7 +65,7 @@ func (rc *RemoteClient) Get(key string) (string, error) {
 		}()
 		if resp.StatusCode == http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
-			return string(b), nil
+			return strings.TrimSuffix(string(b), "\n"), nil
 		}
 		if resp.StatusCode == http.StatusConflict {
 			var h leaderHint

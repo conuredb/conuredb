@@ -1,25 +1,23 @@
 # syntax=docker/dockerfile:1
 
 ## Build stage
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 WORKDIR /src
 
-# Enable CGO for raft compatibility. If CGO_ENABLED=0, Go creates a completely static binary with no C dependencies.
-# The github.com/hashicorp/raft library has some low-level networking and file I/O operations. On certain platforms
-# (like ARM64), the pure Go networking stack can have compatibility issues with container networking.
-ENV CGO_ENABLED=1
+# Target platform args provided automatically by buildx
+ARG TARGETOS
+ARG TARGETARCH
 
-# Install build dependencies for CGO
-RUN apk add --no-cache gcc musl-dev
+# Cache modules
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Copy source and build
+# Copy source and build for the target platform
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
-    go build -ldflags "-s -w" -o /out/conure-db ./cmd/conure-db && \
-    go build -ldflags "-s -w" -o /out/conuresh ./cmd/repl
+    GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/conure-db ./cmd/conure-db && \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/conuresh ./cmd/repl
 
 ## Runtime stage
 FROM alpine:3.19
@@ -30,7 +28,7 @@ RUN apk add --no-cache ca-certificates curl \
     && mkdir -p /var/lib/conure \
     && chown conure:conure /var/lib/conure
 
-# Copy binary
+# Copy binaries from builder
 COPY --from=builder /out/conure-db /bin/conure-db
 COPY --from=builder /out/conuresh /bin/conuresh
 
