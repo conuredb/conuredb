@@ -1,6 +1,6 @@
 image:
   repository: docker.io/conuredb/conuredb
-  tag: latest-2
+  tag: latest
   pullPolicy: Always
 
 service:
