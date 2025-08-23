@@ -1,10 +1,12 @@
 # ConureDB
 
+<div align="center"><img src="./conuredb.jpg" width="350" alt="ConureDB" /></div>
+
+A B-Tree based key-value store with copy-on-write pages and a Raft-backed distributed mode for linearizable writes and optional follower reads.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Report Card](https://goreportcard.com/badge/github.com/conure-db/conure-db)](https://goreportcard.com/report/github.com/conure-db/conure-db)
 [![Docker Pulls](https://img.shields.io/docker/pulls/conuredb/conuredb)](https://hub.docker.com/r/conuredb/conuredb)
-
-A B-Tree based key-value store with copy-on-write pages and a Raft-backed distributed mode for linearizable writes and optional follower reads.
 
 ## 🎯 Features
 
@@ -626,18 +628,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: [GitHub Issues](https://github.com/conure-db/conure-db/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/conure-db/conure-db/discussions)
 - **Security**: [Security Policy](SECURITY.md)
-
-## 🎯 Roadmap
-
-- [ ] **Authentication & Authorization**: Built-in user management
-- [ ] **Encryption at Rest**: Transparent data encryption
-- [ ] **Backup & Restore**: Automated backup solutions
-- [ ] **Metrics & Monitoring**: Prometheus integration
-- [ ] **Client SDKs**: Libraries for popular languages
-- [ ] **Query Language**: SQL-like interface for complex queries
-- [ ] **Streaming**: Change data capture and event streaming
-- [ ] **Multi-Region**: Cross-datacenter replication
-
----
-
-**ConureDB** - Building distributed systems, one key at a time. 🦜
