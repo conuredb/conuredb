@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/conure-db/conure-db/db"
-	"github.com/conure-db/conure-db/pkg/raftnode"
+	"github.com/conuredb/conuredb/db"
+	"github.com/conuredb/conuredb/pkg/raftnode"
 	"github.com/hashicorp/raft"
 )
 

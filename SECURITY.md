@@ -128,7 +128,7 @@ We welcome security research on ConureDB. Please
 ## Contact Information
 
 - **Security Email**: `hi@neelanjan.dev`
-- **General Issues**: [GitHub Issues](https://github.com/conure-db/conure-db/issues)
+- **General Issues**: [GitHub Issues](https://github.com/conuredb/conuredb/issues)
 - **Project Maintainers**: [GitHub Team](https://github.com/orgs/conure-db/teams)
 
 ---

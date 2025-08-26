@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 
-	"github.com/conure-db/conure-db/pkg/config"
+	"github.com/conuredb/conuredb/pkg/config"
 )
 
 // LoadEffectiveConfig defines CLI flags, parses the optional YAML config,
