@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/conure-db/conure-db/btree"
+	"github.com/conuredb/conuredb/btree"
 )
 
 // DB represents a key-value database

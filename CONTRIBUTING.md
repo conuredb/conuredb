@@ -10,13 +10,13 @@ By participating in this project, you are expected to uphold our Code of Conduct
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/conure-db/conure-db/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/conuredb/conuredb/issues)
 2. If not, create a new issue using the bug report template
 3. Include as much detail as possible: version, environment, steps to reproduce, logs
 
 ### Suggesting Features
 
-1. Check existing [Issues](https://github.com/conure-db/conure-db/issues) and [Discussions](https://github.com/conure-db/conure-db/discussions)
+1. Check existing [Issues](https://github.com/conuredb/conuredb/issues) and [Discussions](https://github.com/conuredb/conuredb/discussions)
 2. Create a new issue using the feature request template
 3. Clearly describe the use case and expected behavior
 

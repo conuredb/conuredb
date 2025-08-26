@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/conure-db/conure-db/pkg/config"
+	"github.com/conuredb/conuredb/pkg/config"
 )
 
 // CLIOverrides carries CLI-provided values. Empty strings mean "not set".

@@ -1,4 +1,4 @@
-module github.com/conure-db/conure-db
+module github.com/conuredb/conuredb
 
 go 1.23.0
 

@@ -5,7 +5,7 @@
 A B-Tree based key-value store with copy-on-write pages and a Raft-backed distributed mode for linearizable writes and optional follower reads.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Report Card](https://goreportcard.com/badge/github.com/conure-db/conure-db)](https://goreportcard.com/report/github.com/conure-db/conure-db)
+[![Go Report Card](https://goreportcard.com/badge/github.com/conuredb/conuredb)](https://goreportcard.com/report/github.com/conuredb/conuredb)
 [![Docker Pulls](https://img.shields.io/docker/pulls/conuredb/conuredb)](https://hub.docker.com/r/conuredb/conuredb)
 
 ## 🎯 Features
@@ -67,7 +67,7 @@ helm install conuredb conuredb/conuredb-ha \
 
 ```bash
 # Clone the repository
-git clone https://github.com/conure-db/conure-db.git
+git clone https://github.com/conuredb/conuredb.git
 cd conure-db
 
 # Build binaries
@@ -623,8 +623,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-- **Documentation**: [GitHub Wiki](https://github.com/conure-db/conure-db/wiki)
+- **Documentation**: [GitHub Wiki](https://github.com/conuredb/conuredb/wiki)
 - **Docker Images**: [Docker Hub](https://hub.docker.com/r/conuredb/conuredb)
-- **Issues**: [GitHub Issues](https://github.com/conure-db/conure-db/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/conure-db/conure-db/discussions)
+- **Issues**: [GitHub Issues](https://github.com/conuredb/conuredb/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/conuredb/conuredb/discussions)
 - **Security**: [Security Policy](SECURITY.md)

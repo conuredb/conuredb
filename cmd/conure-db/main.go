@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/conure-db/conure-db/db"
-	"github.com/conure-db/conure-db/pkg/api"
-	"github.com/conure-db/conure-db/pkg/raftnode"
+	"github.com/conuredb/conuredb/db"
+	"github.com/conuredb/conuredb/pkg/api"
+	"github.com/conuredb/conuredb/pkg/raftnode"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/conure-db/conure-db/db"
+	"github.com/conuredb/conuredb/db"
 )
 
 const (

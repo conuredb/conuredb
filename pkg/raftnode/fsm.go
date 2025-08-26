@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/conure-db/conure-db/db"
+	"github.com/conuredb/conuredb/db"
 	"github.com/hashicorp/raft"
 )
 
